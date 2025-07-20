@@ -1,25 +1,18 @@
 {
   "manifest_version": 3,
   "name": "Codeforces Tag Stats",
-  "version": "0.1",
-  "description": "Visualize tag stats and growth directly on Codeforces.",
-  "permissions": [
-    "scripting",
-    "activeTab"
-  ],
+  "version": "0.4.0",
+  "description": "Integrated tag statistics, coverage, and recommendations directly on Codeforces profile pages.",
+  "icons": {
+    "128": "icons/icon128.png"
+  },
   "host_permissions": [
     "https://codeforces.com/*"
   ],
-  "action": {
-    "default_popup": "popup.html",
-    "default_icon": {
-      "128": "icons/icon128.png"
-    }
-  },
   "content_scripts": [
     {
-      "matches": ["https://codeforces.com/*"],
-      "js": ["content.js"]
+      "matches": ["https://codeforces.com/profile/*"],
+      "js": ["cf.js"]
     }
   ]
 }
