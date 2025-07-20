@@ -780,8 +780,92 @@ function initBubbleChart(container, agg, snapshot, selectedTags, graphContainer,
   container.appendChild(svg);
 
   // Initial graph (none selected)
+  drawDifficultyGraph(selectedTags, agg, snapshot, graphContainer);}
+
+/* -------------- BUBBLE CHART → SQUARE GRID --------------- */
+function initBubbleChart(container, agg, snapshot, selectedTags, graphContainer, onSelectionChange) {
+  const tags = agg.tagArray;
+  if (!tags.length) return;
+
+  // compute “size” per tag (log scale)
+  const totals = tags.map(t => t.totalAvailable);
+  const maxTotal = Math.max(...totals);
+  const maxLog = Math.log(1 + maxTotal);
+  const minS = 12, maxS = 48;
+  const sizes = tags.map(t => {
+    const ln = Math.log(1 + t.totalAvailable);
+    return Math.round(minS + (maxS - minS) * (ln / maxLog));
+  });
+
+  // decide grid dimensions
+  const N = tags.length;
+  const cols = Math.floor(Math.sqrt(N * (BUBBLE_WIDTH / BUBBLE_HEIGHT))) || 1;
+  const rows = Math.ceil(N / cols);
+  const cellW = BUBBLE_WIDTH / cols;
+  const cellH = BUBBLE_HEIGHT / rows;
+
+  // create SVG
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("width", BUBBLE_WIDTH);
+  svg.setAttribute("height", BUBBLE_HEIGHT);
+  svg.style.display = "block";
+  container.appendChild(svg);
+
+  tags.forEach((tStat, i) => {
+    const tag = tStat.tag;
+    const sz = sizes[i];
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    // center square inside its cell
+    const x = col * cellW + (cellW - sz) / 2;
+    const y = row * cellH + (cellH - sz) / 2;
+
+    // square
+    const rect = document.createElementNS(svgNS, "rect");
+    rect.setAttribute("x", x);
+    rect.setAttribute("y", y);
+    rect.setAttribute("width", sz);
+    rect.setAttribute("height", sz);
+    rect.setAttribute("fill", coverageColor(tStat.solvePercent));
+    rect.setAttribute("stroke", "#444");
+    rect.setAttribute("stroke-width", "1");
+    rect.setAttribute("data-tag", tag);
+    rect.classList.add("cf-bubble-square");
+
+    // label
+    const text = document.createElementNS(svgNS, "text");
+    text.setAttribute("x", x + sz/2);
+    text.setAttribute("y", y + sz/2);
+    text.setAttribute("text-anchor","middle");
+    text.setAttribute("dominant-baseline","middle");
+    text.style.pointerEvents = "none";
+    text.style.fontSize = "10px";
+    text.style.fill = "#fff";
+    text.textContent = tag.length > 6 ? tag.slice(0,6)+"…" : tag;
+
+    // tooltip
+    const title = document.createElementNS(svgNS, "title");
+    title.textContent = `${tag}\nSolved ${tStat.solved}/${tStat.totalAvailable}`;
+    rect.appendChild(title);
+
+    // click handler
+    rect.addEventListener("click", () => {
+      if (selectedTags.has(tag)) selectedTags.delete(tag);
+      else selectedTags.add(tag);
+      rect.classList.toggle("cf-bubble-square-selected");
+      drawDifficultyGraph(selectedTags, agg, snapshot, graphContainer);
+      onSelectionChange();
+    });
+
+    svg.appendChild(rect);
+    svg.appendChild(text);
+  });
+
+  // initial graph
   drawDifficultyGraph(selectedTags, agg, snapshot, graphContainer);
 }
+
 
 /* -------------- DIFFICULTY GRAPH ----------- */
 function drawDifficultyGraph(selectedTags, agg, snapshot, container) {
@@ -1166,37 +1250,87 @@ function injectStyles() {
   const st = document.createElement("style");
   st.id = "cf-tag-stats-style";
   st.textContent = `
-    .cf-tag-sort-btn, .cf-tag-refresh-btn, .cf-view-toggle {
-      background:#fafafa;
-      border:1px solid #bbb;
-      padding:3px 8px;
-      font-size:12px;
-      cursor:pointer;
-      border-radius:4px;
-      font-family:inherit;
+    /* ───────── General Controls & Table ───────── */
+    .cf-tag-sort-btn,
+    .cf-tag-refresh-btn,
+    .cf-view-toggle {
+      background: #fafafa;
+      border: 1px solid #bbb;
+      padding: 3px 8px;
+      font-size: 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-family: inherit;
     }
-    .cf-view-toggle { font-weight:600; }
-    .cf-active-view { background:#dce9f9; border-color:#88a; }
-    .cf-tag-sort-btn.cf-active { background:#e0e0e0; font-weight:600; border-color:#888; }
-    .cf-tag-sort-btn:hover, .cf-tag-refresh-btn:hover, .cf-view-toggle:hover { background:#e9e9e9; }
-    .cf-tag-stats-table tbody tr.cf-tag-row:hover { background:#f5f5f5; }
-    .cf-td { border:1px solid #ddd; padding:4px 6px; }
-    .cf-td.num { text-align:right; }
-    .cf-selected-row { background:#d9ecff !important; }
+    .cf-view-toggle { font-weight: 600; }
+    .cf-active-view { background: #dce9f9; border-color: #88a; }
+    .cf-tag-sort-btn.cf-active { background: #e0e0e0; font-weight: 600; border-color: #888; }
+    .cf-tag-sort-btn:hover,
+    .cf-tag-refresh-btn:hover,
+    .cf-view-toggle:hover { background: #e9e9e9; }
+    .cf-td { border: 1px solid #ddd; padding: 4px 6px; }
+    .cf-td.num { text-align: right; }
+    .cf-selected-row { background: #d9ecff !important; }
     .cf-drill {
-      border:1px solid #ccc; padding:10px 12px; border-radius:4px; background:#fafafa;
+      border: 1px solid #ccc;
+      padding: 10px 12px;
+      border-radius: 4px;
+      background: #fafafa;
     }
-    .cf-drill-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
-    .cf-drill-table { border-collapse:collapse; width:100%; font-size:13px; }
-    .cf-drill-table th, .cf-drill-table td { border:1px solid #ddd; padding:4px 6px; }
-    .cf-mini { font-size:10px; margin-left:4px; }
-    .cf-foot-note { font-size:11px; opacity:.7; margin-top:6px; line-height:1.3; }
-    .cf-tag-row { cursor:pointer; }
+    .cf-drill-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .cf-drill-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 13px;
+    }
+    .cf-drill-table th,
+    .cf-drill-table td {
+      border: 1px solid #ddd;
+      padding: 4px 6px;
+    }
+    .cf-mini { font-size: 10px; margin-left: 4px; }
+    .cf-foot-note {
+      font-size: 11px;
+      opacity: .7;
+      margin-top: 6px;
+      line-height: 1.3;
+    }
+    .cf-tag-row { cursor: pointer; }
 
-    /* Bubbles */
-    .cf-bubble { transition: stroke-width .15s, transform .15s; }
-    .cf-bubble-selected { stroke:#222 !important; stroke-width:3 !important; filter:drop-shadow(0 0 4px rgba(0,0,0,0.35)); }
-    .cf-bubble-group:hover .cf-bubble:not(.cf-bubble-selected) { stroke-width:2; }
+    /* ───────── Circle Bubbles (if still used) ───────── */
+    .cf-bubble {
+      transition: stroke-width .15s, transform .15s;
+    }
+    .cf-bubble-selected {
+      stroke: #222 !important;
+      stroke-width: 3 !important;
+      filter: drop-shadow(0 0 4px rgba(0,0,0,0.35));
+    }
+    .cf-bubble-group:hover .cf-bubble:not(.cf-bubble-selected) {
+      stroke-width: 2;
+    }
+
+    /* ───────── Grid-Based Squares ───────── */
+    .cf-bubble-square {
+      transition: stroke-width .15s, transform .15s;
+      cursor: pointer;
+    }
+    /* when selected */
+    .cf-bubble-square-selected {
+      stroke: #222 !important;
+      stroke-width: 3 !important;
+      filter: drop-shadow(0 0 4px rgba(0,0,0,0.35));
+    }
+    /* hover effect on un-selected squares */
+    .cf-bubble-square-group:hover
+      .cf-bubble-square:not(.cf-bubble-square-selected) {
+      stroke-width: 2;
+    }
   `;
   document.head.appendChild(st);
 }
